@@ -1,18 +1,20 @@
-const ramp = 2;
-
-export const cropFractionGenerator = (length: number, r: number) => {
+export const cropFractionGenerator = (
+  length: number,
+  ramp: number = 0,
+  rate: number = 2,
+) => {
   const arr = [];
 
   for (let i = 0; i < length; i++) {
     let t = i / (length - 1); // Normalize index to range [0, 1]
     let value;
 
-    if (r === 0) {
+    if (ramp === 0) {
       value = t; // Linear
-    } else if (r < 0) {
-      value = Math.pow(t, 1 + Math.abs(r) * 2); // Closer at zero end
+    } else if (ramp < 0) {
+      value = Math.pow(t, 1 + Math.abs(ramp) * rate); // Closer at zero end
     } else {
-      value = 1 - Math.pow(1 - t, 1 + r * 2); // Closer at one end
+      value = 1 - Math.pow(1 - t, 1 + ramp * rate); // Closer at one end
     }
 
     arr.push(value);

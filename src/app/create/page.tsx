@@ -1,16 +1,22 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import ReactCrop, {
   centerCrop,
   type Crop,
   makeAspectCrop,
   PixelCrop,
 } from 'react-image-crop';
+import { Input } from '@/components/ui/input';
 
 import 'react-image-crop/dist/ReactCrop.css';
 import { getFileUrl } from '@/utils/getFileUrl';
 import { useGenerateCrops } from '@/utils/useGenerateCrops';
+import { Label } from '@/components/ui/label';
+import { Slider } from '@/components/ui/slider';
+import { DatePicker } from '@/components/ui/datepicker';
+import { Button } from '@/components/ui/button';
+import { uploadPuzzleImage } from '@/utils/uploadPuzzleImage';
 
 function centerAspectCrop(
   mediaWidth: number,
@@ -35,13 +41,20 @@ function centerAspectCrop(
 export default function Upload() {
   const aspect = 1;
 
-  const [crop, setCrop] = useState<Crop>();
-  const [crops, setCrops] = useState<Crop[]>([]);
-  const [ramp, setRamp] = useState<number>(0);
   const [imgSrc, setImgSrc] = useState('');
+
+  const [crop, setCrop] = useState<Crop>();
+  const [crops, setCrops] = useState<PixelCrop[]>([]);
   const [completedCrop, setCompletedCrop] = useState<PixelCrop>();
 
-  const blobUrlRef = useRef('');
+  const [ramp, setRamp] = useState<number>(0);
+  const [rate, setRate] = useState<number>(2);
+
+  const [date, setDate] = useState<Date>();
+  const [solution, setSolution] = useState<string>('');
+
+  const [uploading, setUploading] = useState<boolean | 'done'>(false);
+
   const imgRef = useRef<HTMLImageElement>(null);
   const previewCanvasesRef = useRef<HTMLCanvasElement[]>([]);
   const hiddenAnchorRef = useRef<HTMLAnchorElement>(null);
@@ -58,70 +71,47 @@ export default function Upload() {
 
   useGenerateCrops({
     ramp,
+    rate,
     completedCrop,
     setCrops,
     imgRef,
     previewCanvasesRef,
   });
 
-  const onDownloadCropClick = async () => {
-    const imageElement = imgRef.current;
-    const previewCanvas = previewCanvasesRef.current[0];
-
-    if (!imageElement || !previewCanvas || !completedCrop) {
-      throw new Error('Crop canvas does not exist');
+  const onCreatePuzzle = async () => {
+    if (!date || !solution) {
+      return alert('Please fill out the solution and date');
     }
 
-    // This will size relative to the uploaded image
-    // size. If you want to size according to what they
-    // are looking at on screen, remove scaleX + scaleY
-    const scaleX = imageElement.naturalWidth / imageElement.width;
-    const scaleY = imageElement.naturalHeight / imageElement.height;
+    setUploading(true);
 
-    const offscreen = new OffscreenCanvas(
-      completedCrop.width * scaleX,
-      completedCrop.height * scaleY,
-    );
-
-    const ctx = offscreen.getContext('2d');
-
-    if (!ctx) {
-      throw new Error('No 2d context');
-    }
-
-    ctx.drawImage(
-      previewCanvas,
-      0,
-      0,
-      previewCanvas.width,
-      previewCanvas.height,
-      0,
-      0,
-      offscreen.width,
-      offscreen.height,
-    );
-
-    const blob = await offscreen.convertToBlob({
-      type: 'image/jpeg',
-      quality: 0.95,
+    const uploadPromises = previewCanvasesRef.current.map((canvas, i) => {
+      return uploadPuzzleImage({
+        solution,
+        date,
+        image: imgRef.current!,
+        canvas,
+        crop: crops[i],
+        level: i + 1,
+      });
     });
 
-    if (blobUrlRef.current) {
-      URL.revokeObjectURL(blobUrlRef.current);
-    }
+    await Promise.all(uploadPromises);
 
-    blobUrlRef.current = URL.createObjectURL(blob);
-
-    if (hiddenAnchorRef.current) {
-      hiddenAnchorRef.current.href = blobUrlRef.current;
-      hiddenAnchorRef.current.click();
-    }
+    setUploading('done');
   };
 
   return (
     <div className="sm container flex flex-col gap-4">
       <h1 className="mt-4 text-3xl">Upload</h1>
-      <input type="file" accept="image/*" onChange={onSelectFile} />
+      <div className="grid w-full max-w-sm items-center gap-1.5">
+        <Input
+          id="image"
+          type="file"
+          accept="image/*"
+          onChange={onSelectFile}
+        />
+      </div>
       <div className="sm container flex gap-2">
         <div>
           {!!imgSrc && (
@@ -133,8 +123,8 @@ export default function Upload() {
               }}
               onComplete={(c) => setCompletedCrop(c)}
               aspect={aspect}
-              minWidth={50}
-              minHeight={50}
+              minWidth={25}
+              minHeight={25}
             >
               <img
                 ref={imgRef}
@@ -159,21 +149,45 @@ export default function Upload() {
         <div className="min-w-[30%]">
           {!!completedCrop && (
             <div>
-              <div className={`relative flex h-[200px] w-full flex-col gap-1`}>
-                <div
-                  className={`relative flex h-[200px] w-full flex-col gap-1`}
-                >
-                  <label htmlFor="ramp">Ramp:</label>
-                  <input
-                    type="range"
+              <div className={`relative m-2 mt-4 flex w-full flex-col gap-6`}>
+                <div className={`relative flex flex-col gap-1`}>
+                  <Label htmlFor="ramp">Ramp:</Label>
+                  <Slider
                     min={-1}
                     max={1}
                     step={0.01}
-                    value={ramp}
-                    onChange={(e) => setRamp(parseFloat(e.target.value))}
+                    value={[ramp]}
+                    onValueChange={([ramp]: number[]) => setRamp(ramp)}
                   />
                 </div>
-                <button onClick={onDownloadCropClick}>Download Crop</button>
+                <div className={`relative flex flex-col gap-1`}>
+                  <Label htmlFor="rate">Rate:</Label>
+                  <Slider
+                    min={1}
+                    max={4}
+                    step={0.01}
+                    value={[rate]}
+                    onValueChange={([rate]: number[]) => setRate(rate)}
+                  />
+                </div>
+                <Input
+                  type="solution"
+                  placeholder="Solution"
+                  onChange={(e) => setSolution(e.target.value)}
+                  value={solution}
+                />
+                <DatePicker
+                  placeholder="Choose date of puzzle"
+                  value={date}
+                  onChange={setDate}
+                />
+                <Button onClick={onCreatePuzzle}>
+                  {uploading
+                    ? uploading === 'done'
+                      ? 'Uploaded!'
+                      : 'Uploading...'
+                    : 'Create Puzzle'}
+                </Button>
                 <a
                   href="#hidden"
                   ref={hiddenAnchorRef}

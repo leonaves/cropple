@@ -7,19 +7,21 @@ const LEVELS = 6;
 
 export const useGenerateCrops = ({
   ramp,
+  rate,
   completedCrop,
   setCrops,
   imgRef,
   previewCanvasesRef,
 }: {
   ramp: number;
+  rate: number;
   completedCrop?: PixelCrop;
   setCrops: (crops: PixelCrop[]) => void;
   imgRef: React.MutableRefObject<HTMLImageElement | null>;
   previewCanvasesRef: React.MutableRefObject<HTMLCanvasElement[]>;
 }) => {
   useEffect(() => {
-    const generatedCrops = cropFractionGenerator(LEVELS + 1, ramp).map(
+    const generatedCrops = cropFractionGenerator(LEVELS + 1, ramp, rate).map(
       (fraction, i) => {
         if (!completedCrop)
           return {
@@ -53,5 +55,5 @@ export const useGenerateCrops = ({
     );
 
     setCrops(generatedCrops);
-  }, [completedCrop, imgRef, previewCanvasesRef, ramp, setCrops]);
+  }, [completedCrop, imgRef, previewCanvasesRef, ramp, rate, setCrops]);
 };
